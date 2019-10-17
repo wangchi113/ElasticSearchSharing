@@ -254,6 +254,53 @@ POST _analyze
   "text": "这个苹果不大好吃"
 }
 
+#######自定义分词#####
+DELETE my_index
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_custom_analyzer" : {
+          "type": "custom",
+          "char_filter":[
+            "emoticons"
+          ],
+          "tokenizer":"punctuation",
+          "filter":[
+            "lowercase",
+            "english_stop"
+          ]
+        }
+      },
+      "tokenizer": {
+        "punctuation": {
+          "type" : "pattern",
+          "pattern" : "[ .,!?]"
+        }
+      },
+      "char_filter": {
+        "emoticons": {
+          "type" : "mapping",
+          "mappings" : [ ":) => _happy_", ":( => _sad_"]
+        }
+      },
+      "filter": {
+        "english_stop" : {
+          "type" : "stop",
+          "stopwords" : "_english_"
+        }
+      }
+    }
+  }
+}
+
+POST my_index/_analyze
+{
+  "analyzer": "my_custom_analyzer",
+  "text": "I'm a :) person, and you?"
+}
+
 ####################################
 
 #基本查询
@@ -451,3 +498,407 @@ POST movies/_search
     }
   }
 }
+
+############mapping##########
+GET movies/_mapping
+
+#设置 index 为 false
+DELETE users
+PUT users
+{
+    "mappings" : {
+      "properties" : {
+        "firstName" : {
+          "type" : "text"
+        },
+        "lastName" : {
+          "type" : "text"
+        },
+        "mobile" : {
+          "type" : "text",
+          "index": false
+        }
+      }
+    }
+}
+
+PUT users/_doc/1
+{
+  "firstName":"Ruan",
+  "lastName": "Yiming",
+  "mobile": "12345678"
+}
+
+POST /users/_search
+{
+  "query": {
+    "match": {
+      "mobile":"12345678"
+    }
+  }
+}
+
+
+
+
+#设定Null_value
+
+DELETE users
+PUT users
+{
+    "mappings" : {
+      "properties" : {
+        "firstName" : {
+          "type" : "text"
+        },
+        "lastName" : {
+          "type" : "text"
+        },
+        "mobile" : {
+          "type" : "keyword",
+          "null_value": "NULL"
+        }
+
+      }
+    }
+}
+
+PUT users/_doc/1
+{
+  "firstName":"Ruan",
+  "lastName": "Yiming",
+  "mobile": null
+}
+
+
+PUT users/_doc/2
+{
+  "firstName":"Ruan2",
+  "lastName": "Yiming2"
+
+}
+
+GET users/_search
+{
+  "query": {
+    "match": {
+      "mobile":"NULL"
+    }
+  }
+
+}
+
+
+
+#设置 Copy to
+DELETE users
+PUT users
+{
+  "mappings": {
+    "properties": {
+      "firstName":{
+        "type": "text",
+        "copy_to": "fullName"
+      },
+      "lastName":{
+        "type": "text",
+        "copy_to": "fullName"
+      }
+    }
+  }
+}
+PUT users/_doc/1
+{
+  "firstName":"Ruan",
+  "lastName": "Yiming"
+}
+
+GET users/_search?q=fullName:(Ruan Yiming)
+
+POST users/_search
+{
+  "query": {
+    "match": {
+       "fullName":{
+        "query": "Ruan Yiming",
+        "operator": "and"
+      }
+    }
+  }
+}
+
+
+#数组类型
+PUT users/_doc/1
+{
+  "name":"onebird",
+  "interests":"reading"
+}
+
+PUT users/_doc/1
+{
+  "name":"twobirds",
+  "interests":["reading","music"]
+}
+
+POST users/_search
+{
+  "query": {
+		"match_all": {}
+	}
+}
+
+GET users/_mapping
+
+###########聚合##################
+#按照目的地进行分桶统计
+GET kibana_sample_data_flights/_search
+{
+	"size": 0,
+	"aggs":{
+		"flight_dest":{
+			"terms":{
+				"field":"DestCountry"
+			}
+		}
+	}
+}
+
+
+
+#查看航班目的地的统计信息，增加平均，最高最低价格
+GET kibana_sample_data_flights/_search
+{
+	"size": 0,
+	"aggs":{
+		"flight_dest":{
+			"terms":{
+				"field":"DestCountry"
+			},
+			"aggs":{
+				"avg_price":{
+					"avg":{
+						"field":"AvgTicketPrice"
+					}
+				},
+				"max_price":{
+					"max":{
+						"field":"AvgTicketPrice"
+					}
+				},
+				"min_price":{
+					"min":{
+						"field":"AvgTicketPrice"
+					}
+				}
+			}
+		}
+	}
+}
+
+
+
+#价格统计信息+天气信息
+GET kibana_sample_data_flights/_search
+{
+	"size": 0,
+	"aggs":{
+		"flight_dest":{
+			"terms":{
+				"field":"DestCountry"
+			},
+			"aggs":{
+				"stats_price":{
+					"stats":{
+						"field":"AvgTicketPrice"
+					}
+				},
+				"wather":{
+				  "terms": {
+				    "field": "DestWeather",
+				    "size": 5
+				  }
+				}
+
+			}
+		}
+	}
+}
+
+############基于词项和基于全文的搜索######
+DELETE products
+PUT products
+{
+  "settings": {
+    "number_of_shards": 1
+  }
+}
+
+
+POST /products/_bulk
+{ "index": { "_id": 1 }}
+{ "productID" : "XHDK-A-1293-#fJ3","desc":"iPhone" }
+{ "index": { "_id": 2 }}
+{ "productID" : "KDKE-B-9947-#kL5","desc":"iPad" }
+{ "index": { "_id": 3 }}
+{ "productID" : "JODL-X-1937-#pV7","desc":"MBP" }
+
+GET /products
+
+POST /products/_search
+{
+  "query": {
+    "term": {
+      "desc": {
+        //"value": "iPhone"
+        "value":"iphone"
+      }
+    }
+  }
+}
+
+POST /products/_search
+{
+  "query": {
+    "term": {
+      "desc.keyword": {
+        //"value": "iPhone"
+        //"value":"iphone"
+      }
+    }
+  }
+}
+
+
+POST /products/_search
+{
+  "query": {
+    "term": {
+      "productID": {
+        "value": "XHDK-A-1293-#fJ3"
+      }
+    }
+  }
+}
+
+POST /products/_search
+{
+  //"explain": true,
+  "query": {
+    "term": {
+      "productID.keyword": {
+        "value": "XHDK-A-1293-#fJ3"
+      }
+    }
+  }
+}
+
+
+
+
+POST /products/_search
+{
+  "explain": true,
+  "query": {
+    "constant_score": {
+      "filter": {
+        "term": {
+          "productID.keyword": "XHDK-A-1293-#fJ3"
+        }
+      }
+
+    }
+  }
+}
+
+######基于全文
+POST movies/_search
+{
+  "profile":"true",
+  "query": {
+    "match": {
+      "title": {
+        "query": "Matrix reloaded"
+        //, "operator": "and"
+      }
+    }
+  }
+}
+
+POST movies/_search
+{
+  "profile":"true",
+  "query": {
+    "match_phrase": {
+      "title": {
+        "query": "Matrix reloaded",
+        "slop": 1
+      }
+    }
+  }
+}
+
+############搜索的相关性算分#########
+DELETE testscore
+
+PUT testscore
+{
+  "settings": {
+    "number_of_shards": 1
+  },
+  "mappings": {
+    "properties": {
+      "content": {
+        "type": "text"
+      }
+    }
+  }
+}
+
+
+PUT testscore/_bulk
+{ "index": { "_id": 1 }}
+{ "content":"we use Elasticsearch to power the search" }
+{ "index": { "_id": 2 }}
+{ "content":"we like elasticsearch" }
+{ "index": { "_id": 3 }}
+{ "content":"The scoring of documents is caculated by the scoring formula" }
+{ "index": { "_id": 4 }}
+{ "content":"you know, for search" }
+
+
+
+POST /testscore/_search
+{
+  //"explain": true,
+  "query": {
+    "match": {
+      //"content":"you"
+      "content": "elasticsearch"
+      //"content":"the"
+      //"content": "the elasticsearch"
+    }
+  }
+}
+
+POST testscore/_search
+{
+    "query": {
+        "boosting" : {
+            "positive" : {
+                "term" : {
+                    "content" : "elasticsearch"
+                }
+            },
+            "negative" : {
+                 "term" : {
+                     "content" : "like"
+                }
+            },
+            "negative_boost" : 0.2
+        }
+    }
+}
+
+
+
