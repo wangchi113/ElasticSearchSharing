@@ -1,3 +1,5 @@
+########## ES基本概念文档和索引#############
+
 #查看索引相关信息
 GET kibana_sample_data_ecommerce
 
@@ -24,6 +26,36 @@ GET /_cat/indices?v&h=i,tm&s=tm:desc
 
 
 GET _cluster/health
+GET _cat/shards
+
+###########水平扩展实验##########
+DELETE shards_test
+
+PUT /shards_test
+{
+    "settings" : {
+        "index" : {
+            "number_of_shards" : 3, 
+            "number_of_replicas" : 0 
+        }
+    }
+}
+
+POST _cluster/reroute
+{
+  "commands" : [
+    {
+      "move" : {
+        "index" : "shards_test", 
+        "shard" : 2,
+        "from_node" : "node1", 
+        "to_node" : "node2"
+    }
+    }
+    ]
+  
+}
+
 GET _cat/shards
 
 ############Create Document############
