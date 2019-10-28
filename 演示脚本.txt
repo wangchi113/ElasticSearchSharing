@@ -1147,5 +1147,29 @@ GET /titles/_search
     }
 }
 
+########cross fields ##########
+
+DELETE address
+PUT address/_doc/1
+{
+  "street": "5 Poland Street",
+  "city": "London",
+  "country": "United Kingdom",
+  "postcode": "W1V 3DG"
+}
+
+POST address/_search
+{
+  "query": {
+    "multi_match": {
+      "query": "Poland Street W1V",
+      "type": "cross_fields",
+      "operator": "and", 
+      "fields": ["street","city","country","postcode"]
+    }
+  }
+}
+## 比copy to的好处是节省空间，还可以增加权重
+
 
 
